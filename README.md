@@ -9,7 +9,7 @@ This repository is a wrapper around the [HuggingFace Transformers](https://www.g
 1. Clone the repository
 
 ```bash
-git clone <>
+git clone https://github.com/humanlab/GenLM-Inference-Wrapper.git
 ```
 
 2. Install the requirements
@@ -80,9 +80,9 @@ python mysql_interface -d db_name -t message_table -i emotion_4_class \
 If you use this library, please cite us:
 
 ```
-@article{socialite_llama,
-  author = {Gourab Dey, Adithya V Ganesan, Yash Kumar Lal, Manal Shah, Shreyashee Sinha, Matthew Matero, Salvatore Giorgi, Vivek Kulkarni, and H. Andrew Schwartz},
-  title = {Socialite-Llama: An Instruction Tuned Language Model for Social Scientific Applications},
+@article{gen_lm_wrapper,
+  author = {Gourab Dey, Adithya V Ganesan, Yash Kumar Lal, Salvatore Giorgi, Vivek Kulkarni, and H. Andrew Schwartz},
+  title = {GenLM-Inference-Wrapper},
   year = {2023},
   publisher = {github}
 }
