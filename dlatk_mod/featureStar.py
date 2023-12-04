@@ -1,0 +1,185 @@
+import pandas as pd
+from configparser import SafeConfigParser
+
+#infrastructure
+from . import dlaConstants as dlac
+from .featureGetter import FeatureGetter
+from .featureExtractor import FeatureExtractor
+from .featureRefiner import FeatureRefiner
+from .outcomeGetter import OutcomeGetter
+from .outcomeAnalyzer import OutcomeAnalyzer
+from .regressionPredictor import RegressionPredictor
+from .classifyPredictor import ClassifyPredictor
+from .messageTransformer import MessageTransformer
+
+
+class FeatureStar(object):
+	"""Generic class for importing an instance of each class in DLATK
+
+    Parameters
+    ----------
+    fe : FeatureExtractor object
+
+	fg : FeatureGetter object
+
+	fr : FeatureRefiner object
+
+	og : OutcomeGetter object
+
+	oa : OutcomeAnalyzer object
+
+	cp : ClassifyPredictor object
+
+	rp : RegressionPredictor object
+
+	allFW : dict
+		Dictionary containing all of the above attributes keyed on object name
+
+    Examples
+    --------
+    Initialize a FeatureStar
+
+    >>> fs = FeatureStar.fromFile('~/myInit.ini')
+
+    Create a pandas dataframe with both feature and outcome information
+
+    >>> df = fs.combineDFs()
+
+    """
+
+
+	@classmethod
+	def fromFile(cls, initFile, initList=None):
+		"""Loads specified features from file
+
+        Parameters
+        ----------
+        initFile : str 
+            Path to file
+
+        initList : list
+        	List of classes to load
+
+        """
+		parser = SafeConfigParser()
+		parser.read(initFile)
+		db_type = parser.get('constants','db_type') if parser.has_option('constants','db_type') else dlac.DB_TYPE
+		corpdb = parser.get('constants','corpdb') if parser.has_option('constants','corpdb') else dlac.DEF_CORPDB
+		corptable = parser.get('constants','corptable') if parser.has_option('constants','corptable') else dlac.DEF_CORPTABLE
+		correl_field = parser.get('constants','correl_field') if parser.has_option('constants','correl_field') else dlac.DEF_CORREL_FIELD
+		mysql_config_file = parser.get('constants','mysql_config_file') if parser.has_option('constants','mysql_config_file') else dlac.MYSQL_CONFIG_FILE
+		message_field = parser.get('constants','message_field') if parser.has_option('constants','message_field') else dlac.DEF_MESSAGE_FIELD
+		messageid_field = parser.get('constants','messageid_field') if parser.has_option('constants','messageid_field') else dlac.DEF_MESSAGEID_FIELD
+		encoding = parser.get('constants','encoding') if parser.has_option('constants','encoding') else dlac.DEF_ENCODING
+		if parser.has_option('constants','use_unicode'):
+			use_unicode = True if parser.get('constants','use_unicode')=="True" else False
+		else:
+			use_unicode = dlac.DEF_UNICODE_SWITCH
+		lexicondb = parser.get('constants','lexicondb') if parser.has_option('constants','lexicondb') else dlac.DEF_LEXICON_DB
+		if parser.has_option('constants','feattable'):
+			if len(parser.get('constants','feattable').split(",")) > 0:
+				featureTable = [f.strip() for f in parser.get('constants','feattable').split(",")]
+			else:
+				featureTable = parser.get('constants','feattable')
+		else:
+			featureTable = dlac.DEF_FEAT_TABLE
+		featNames = parser.get('constants','featnames') if parser.has_option('constants','featnames') else dlac.DEF_FEAT_NAMES
+		date_field = parser.get('constants','date_field') if parser.has_option('constants','date_field') else dlac.DEF_DATE_FIELD
+		outcome_table = parser.get('constants','outcometable') if parser.has_option('constants','outcometable') else dlac.DEF_OUTCOME_TABLE
+		outcome_value_fields = [o.strip() for o in parser.get('constants','outcomefields').split(",")] if parser.has_option('constants','outcomefields') else [dlac.DEF_OUTCOME_FIELD] # possible list
+		outcome_controls = [o.strip() for o in parser.get('constants','outcomecontrols').split(",")] if parser.has_option('constants','outcomecontrols') else dlac.DEF_OUTCOME_CONTROLS # possible list
+		outcome_interaction = [o.strip() for o in parser.get('constants','outcomeinteraction').split(",")] if parser.has_option('constants','outcomeinteraction') else dlac.DEF_OUTCOME_CONTROLS # possible list
+		group_freq_thresh = int(parser.get('constants','groupfreqthresh')) if parser.has_option('constants','groupfreqthresh') else dlac.getGroupFreqThresh(correl_field)
+		featureMappingTable = parser.get('constants','featlabelmaptable') if parser.has_option('constants','featlabelmaptable') else ''
+		featureMappingLex = parser.get('constants','featlabelmaplex') if parser.has_option('constants','featlabelmaplex') else ''
+		output_name = parser.get('constants','outputname') if parser.has_option('constants','outputname') else ''
+		wordTable = parser.get('constants','wordTable') if parser.has_option('constants','wordTable') else None
+		model =  parser.get('constants','model') if parser.has_option('constants','model') else dlac.DEF_MODEL
+		feature_selection = dlac.DEF_FEATURE_SELECTION_MAPPING[parser.get('constants','featureselection')] if parser.has_option('constants','featureselection') else ''
+		feature_selection_string = parser.get('constants','featureselectionstring') if parser.has_option('constants','featureselectionstring') else ''
+		if initList:
+			init = initList
+		else:
+			init = [o.strip() for o in parser.get('constants','init').split(",")] if parser.has_option('constants','init') else ['fw', 'fg', 'fe', 'fr', 'og', 'oa', 'rp', 'cp']
+		return cls(db_type=db_type, corpdb=corpdb, corptable=corptable, correl_field=correl_field, mysql_config_file=mysql_config_file, message_field=message_field, messageid_field=messageid_field, encoding=encoding, use_unicode=use_unicode, lexicondb=lexicondb, featureTable=featureTable, featNames=featNames, date_field=date_field, outcome_table=outcome_table, outcome_value_fields=outcome_value_fields, outcome_controls=outcome_controls, outcome_interaction=outcome_interaction, group_freq_thresh=group_freq_thresh, featureMappingTable=featureMappingTable, featureMappingLex=featureMappingLex,  output_name=output_name, wordTable=wordTable, model=model, feature_selection=feature_selection, feature_selection_string = feature_selection_string, init=init)
+
+
+	##INIT##
+	def __init__(self, db_type=dlac.DB_TYPE, corpdb=dlac.DEF_CORPDB, corptable=dlac.DEF_CORPTABLE, correl_field=dlac.DEF_CORREL_FIELD, mysql_config_file=dlac.MYSQL_CONFIG_FILE, message_field=dlac.DEF_MESSAGE_FIELD, messageid_field=dlac.DEF_MESSAGEID_FIELD, encoding=dlac.DEF_ENCODING, use_unicode=dlac.DEF_UNICODE_SWITCH, lexicondb=dlac.DEF_LEXICON_DB, featureTable=dlac.DEF_FEAT_TABLE, featNames=dlac.DEF_FEAT_NAMES, date_field=dlac.DEF_DATE_FIELD, outcome_table=dlac.DEF_OUTCOME_TABLE, outcome_value_fields=[dlac.DEF_OUTCOME_FIELD], outcome_controls = dlac.DEF_OUTCOME_CONTROLS, outcome_interaction = dlac.DEF_OUTCOME_CONTROLS, cattobinfields=[], cattointfields=[], group_freq_thresh = None, featureMappingTable='', featureMappingLex='',  output_name='', wordTable=None, model=dlac.DEF_MODEL, feature_selection='', feature_selection_string = '', init=None):
+		
+		if feature_selection_string or feature_selection:
+			RegressionPredictor.featureSelectionString = feature_selection if feature_selection else feature_selection_string
+			ClassifyPredictor.featureSelectionString = feature_selection if feature_selection else feature_selection_string
+		
+		if init:
+			if 'fg' in init:
+				if isinstance(featureTable, str):
+					self.fg = FeatureGetter(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, featureTable, featNames, wordTable)
+				else:
+					self.fg = [FeatureGetter(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, ft, featNames, wordTable) for ft in featureTable]
+			else:
+				None
+			self.mt = MessageTransformer(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, wordTable = wordTable) if 'mt' in init else None
+			self.fe = FeatureExtractor(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, wordTable=wordTable) if 'fe' in init else None
+			self.fr = FeatureRefiner(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, featureTable, featNames, wordTable=wordTable) if 'fr' in init else None
+			self.og = OutcomeGetter(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, outcome_table, outcome_value_fields, outcome_controls, outcome_interaction, cattobinfields, cattointfields, group_freq_thresh, featureMappingTable, featureMappingLex, wordTable) if 'og' in init else None
+			self.oa = OutcomeAnalyzer(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, outcome_table, outcome_value_fields, outcome_controls, outcome_interaction, cattobinfields, cattointfields, group_freq_thresh, featureMappingTable, featureMappingLex, output_name, wordTable) if 'oa' in init else None
+			self.rp = RegressionPredictor(self.og, self.fg, model) if 'rp' in init else None
+			self.cp = ClassifyPredictor(self.og, self.fg, model) if 'cp' in init else None
+		else: 
+			if isinstance(featureTable, str):
+				self.fg = FeatureGetter(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, featureTable, featNames, wordTable)
+			else:
+				self.fg = [FeatureGetter(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, ft, featNames, wordTable) for ft in featureTable]
+			self.mt = MessageTransformer(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, wordTable = wordTable)
+			self.fe = FeatureExtractor(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, wordTable=wordTable)
+			self.fr = FeatureRefiner(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, featureTable, featNames, wordTable)
+			self.og = OutcomeGetter(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, outcome_table, outcome_value_fields, outcome_controls, outcome_interaction, group_freq_thresh, featureMappingTable, featureMappingLex, wordTable)
+			self.oa = OutcomeAnalyzer(db_type, corpdb, corptable, correl_field, mysql_config_file, message_field, messageid_field, encoding, use_unicode, lexicondb, outcome_table, outcome_value_fields, outcome_controls, outcome_interaction, group_freq_thresh, featureMappingTable, featureMappingLex, output_name, wordTable)
+			self.rp = RegressionPredictor(self.og, self.fg, model)
+			self.cp = ClassifyPredictor(self.og, self.fg, model)
+		
+		self.allDLATK = {
+				"FeatureGetter": self.fg,
+				"MessageTransformer": self.mt,
+				"FeatureExtractor": self.fe,
+				"FeatureRefiner": self.fr,
+				"OutcomeGetter": self.og,
+				"OutcomeAnalyzer": self.oa,
+				"RegressionPredictor": self.rp,
+				"ClassifyPredictor": self.cp,
+			}
+
+	def combineDFs(self, fg=None, og=None, fillNA=True):
+		"""Method for combining a feature table with an outcome table in a single dataframe
+
+        Parameters
+        ----------
+        fg : FeatureGetter object
+        
+        og : OutcomeGetter object
+        
+        fillNA : boolean)
+			option to fill missing or NA values in dataframe, fill value = 0
+
+        Returns
+        -------
+        pandas dataframe 
+        	Dataframe indexed on group_id (correl_field)
+
+        """
+		if fg:
+			if isinstance(fg, FeatureGetter):
+				fg = fg.getGroupNormsWithZerosAsDF(pivot=True)
+		else:
+			fg = self.fg.getGroupNormsWithZerosAsDF(pivot=True)
+		if og:
+			if isinstance(og, OutcomeGetter):
+				og = og.getGroupsAndOutcomesAsDF()
+		else:
+			og = self.og.getGroupsAndOutcomesAsDF()
+
+		if fillNA:
+			return pd.concat([fg, og], axis=1).fillna(value=0)
+		else:
+			return pd.concat([fg, og], axis=1)
