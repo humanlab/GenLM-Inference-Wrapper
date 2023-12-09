@@ -1,11 +1,12 @@
 import argparse
+import math
 from tqdm import tqdm
 
-from src import GenLMInferenceWrapper, PromptTemplater
-from src.constants import SOCIALITE_CHECKPOINT
-from dlatk_mod.dlaConstants import MAX_SQL_SELECT
-from dlatk_mod.database.query import QueryBuilder, Column
-from dlatk_mod.database.dataEngine import DataEngine
+from genlm_inference import GenLMInferenceWrapper, PromptTemplater
+from genlm_inference.constants import BATCH_SIZE, SOCIALITE_CHECKPOINT
+from data_connector.dcConstants import MAX_SQL_SELECT, BATCH_SIZE
+from data_connector.database.query import QueryBuilder, Column
+from data_connector.database.dataEngine import DataEngine
 
 
 def parse_args():
@@ -19,6 +20,7 @@ def parse_args():
                     help="Output table name. DLATK convention: feat$<feature_name>$<table_name>$<group_field>. Ensure the feature name reflects the name of the model and the instruction")
     args.add_argument("--model_path", type=str, default=SOCIALITE_CHECKPOINT, help="Path to the model checkpoint")
     args.add_argument("--mysql_config_file", type=str, default="~/.my.cnf", help="MySQL config file")
+    args.add_argument("--batch_size", type=int, default=BATCH_SIZE, help="Batch size for inference")
     # args.add_argument("--cache_dir", type=str, default="~/.cache/socialite/v1", help="Cache directory for socialite")
     return args.parse_args()
 
@@ -78,16 +80,34 @@ if __name__ == '__main__':
     print ("Output table created: {}".format(table_name))
     print ("-----------------------")
 
-    for idx, rows in tqdm(enumerate(cursor), total=max(num_messages//MAX_SQL_SELECT, 1)):
-        response = rows.fetchmany(size=MAX_SQL_SELECT)        
-        input_prompt = templater(input_text=[r[1] for r in response], instruction=args.instruction)
-    
-        prediction_data = model.generate_outputs(input_data=input_prompt)
-        prediction_data = [(response[idx][0], response[idx][1], datadict['text'], datadict['generated_text']) for idx, datadict in enumerate(prediction_data)]
+    five_percent = math.ceil(num_messages * 0.05)
+    num_global_iters = math.ceil(num_messages / float(MAX_SQL_SELECT))
+    message_idx = 0
+    progress_bar = tqdm(total=num_messages)
+    for global_iter in range(num_global_iters):
+        response = cursor.fetchmany(size=MAX_SQL_SELECT)
+        num_batches = math.ceil(len(response) / float(args.batch_size))
+        # print (f"Number of batches, len response: {num_batches}/{len(response)}")
+        
+        for batch_idx in range(num_batches):
+            id = [r[0] for r in response][batch_idx*args.batch_size:(batch_idx+1)*args.batch_size]
+            input_data = [r[1] for r in response][batch_idx*args.batch_size:(batch_idx+1)*args.batch_size]
+            input_prompt = templater(input_text=input_data, instruction=args.instruction)
 
-        write_to_table(data=prediction_data, args=args, qb=qb)
-    
+            prediction_data = model.generate_outputs(input_data=input_prompt)
+            prediction_data = [(id[jdx], input_data[jdx], datadict['text'], datadict['generated_text']) for jdx, datadict in enumerate(prediction_data)]
+
+            write_to_table(data=prediction_data, args=args, qb=qb)
+            progress_bar.update(args.batch_size)
+            message_idx += args.batch_size
+            # batch_idx += 1
+            
+            # if message_idx % five_percent == 0:
+            #     print ("-----------------------")
+            #     print ("{}% of messages processed".format(message_idx*100/num_messages))
+            #     print ("-----------------------")
+
+        progress_bar.close()
     print ("-----------------------")
-    # Insert shrug emoji here in the print statement
     print ("Successfully Finised Running the Inference ¯\_(ツ)_/¯")
     print ("-----------------------")
