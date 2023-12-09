@@ -12,10 +12,10 @@ This repository is a wrapper around the [HuggingFace Transformers](https://www.g
 git clone https://github.com/humanlab/GenLM-Inference-Wrapper.git
 ```
 
-2. Install the requirements
+2. Install the requirements through pip
 
 ```bash
-pip install -r requirements.txt
+pip install '.[all]'
 ```
 
 You can also create a conda environment and install the requirements within the requirement.
@@ -23,12 +23,6 @@ You can also create a conda environment and install the requirements within the 
 ```bash
 conda create -n genlm python=3.8
 conda activate genlm
-pip install -r requirements.txt
-```
-
-3. Run the setup install file in case you want to use the DLATK backend or if your datastore is a MySQL database.
-
-```bash
 python setup.py install
 ```
 
