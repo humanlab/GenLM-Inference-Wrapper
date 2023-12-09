@@ -1,4 +1,4 @@
-from src import PromptTemplater, GenLMInferenceWrapper
+from genlm_inference import PromptTemplater, GenLMInferenceWrapper
 
 if __name__ == '__main__':
         
@@ -10,12 +10,12 @@ if __name__ == '__main__':
     fewshot_prompt = templater(input_text, instruction, few_shot_examples)
 
     for i in range(len(fewshot_prompt)):
-        print(fewshot_prompt[i]['text'])
+        print(fewshot_prompt[i])
 
     print("No few shot ***********************************")
     zeroshot_prompt = templater(input_text, instruction)
     for i in range(len(zeroshot_prompt)):
-        print(zeroshot_prompt[i]['text'])
+        print(zeroshot_prompt[i])
         
     print ("---------------------------------------------")
     print ("---------------------------------------------")
